@@ -89,6 +89,14 @@ type Config struct {
 	// the pair rather than through the mask alone is what makes the defaults
 	// come out near the size they name; see TestTheChunksComeOutNearTheAverage.
 	Average int
+	// Bits says how many bits of the hash a boundary needs, and overrides
+	// Average when it is set.
+	//
+	// It is here for a caller that has the count rather than a size to aim at:
+	// bita stores it in an archive header, and a chunker rebuilt to read that
+	// archive has to cut where the count says and not where a rounded average
+	// would. Zero means Average decides.
+	Bits int
 	// Min and Max bound a chunk. Zero is [DefaultMin] and [DefaultMax].
 	Min, Max int
 }
@@ -111,6 +119,16 @@ func NewBuzHashRolling(window int) Rolling { return NewBuzHash(window) }
 func NewRollSumRolling(window int) Rolling { return NewRollSum(window) }
 
 // filled returns the config with every zero replaced by its default.
+// BitsFromAverage returns how many boundary bits an average implies, by bita's
+// arithmetic. It is what [Config.Average] is turned into, exposed because a
+// caller writing an archive header has to record the count rather than the size.
+func BitsFromAverage(average int) int {
+	if average <= 0 {
+		average = DefaultAverage
+	}
+	return int(30 - uint32(bits.LeadingZeros32(uint32(average))))
+}
+
 func (c Config) filled() Config {
 	if c.Rolling == nil {
 		c.Rolling = NewBuzHashRolling
@@ -135,11 +153,21 @@ func (c Config) filled() Config {
 
 // mask is the boundary test: a chunk ends where every bit of the mask is set in
 // the hash. A mask of n bits is tripped by one hash in 2^n, so a boundary falls
-// every 2^n bytes on average. The count is bita's, so that a stream cut here is
-// cut where bita cuts it; see [Config.Average] for what it means for the sizes
-// that come out.
+// every 2^n bytes on average.
+//
+// The count comes from [Config.Bits] when that is set and from Average
+// otherwise, by bita's arithmetic, so that a stream cut here is cut where bita
+// cuts it; see [Config.Average] for what that means for the sizes that come out.
 func (c Config) mask() uint32 {
-	bitsSet := 30 - uint32(bits.LeadingZeros32(uint32(c.Average)))
+	bitsSet := uint32(c.Bits)
+	if bitsSet == 0 {
+		bitsSet = 30 - uint32(bits.LeadingZeros32(uint32(c.Average)))
+	}
+	if bitsSet >= 32 {
+		// A mask of every bit is a boundary that never comes, which is Max's
+		// job to answer rather than a shift nobody can read.
+		bitsSet = 31
+	}
 	return uint32(0xffffffff) >> (32 - bitsSet)
 }
 

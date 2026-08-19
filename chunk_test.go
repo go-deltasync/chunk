@@ -439,3 +439,39 @@ func ExampleCut() {
 	fmt.Println(len(pieces) > 1, len(rejoin(pieces)) == len(data))
 	// Output: true true
 }
+
+// Bits is for a caller that has the count rather than a size: bita reads it from
+// an archive header, and a chunker rebuilt to read that archive has to cut where
+// the count says.
+func TestBitsOverridesTheAverage(t *testing.T) {
+	// The same count, reached two ways, cuts the same stream the same way.
+	data := noise(21, 60_000)
+	byAverage := Bytes(data, Config{Average: 1024, Min: 64, Max: 4096, Window: 16})
+	byBits := Bytes(data, Config{Bits: BitsFromAverage(1024), Min: 64, Max: 4096, Window: 16})
+	if len(byAverage) != len(byBits) {
+		t.Fatalf("an average of 1024 gave %d pieces and its bit count gave %d",
+			len(byAverage), len(byBits))
+	}
+	for i := range byAverage {
+		if !bytes.Equal(byAverage[i], byBits[i]) {
+			t.Fatalf("piece %d differs between an average and its own bit count", i)
+		}
+	}
+	// And a count set explicitly is used whatever the average says.
+	if got := onesIn((Config{Bits: 4, Average: 1 << 20}).filled().mask()); got != 4 {
+		t.Fatalf("Bits: 4 beside a large average gave %d bits", got)
+	}
+	if got := BitsFromAverage(0); got != BitsFromAverage(DefaultAverage) {
+		t.Fatalf("BitsFromAverage(0) gave %d, want the default's %d",
+			got, BitsFromAverage(DefaultAverage))
+	}
+	// A count no hash can satisfy is a boundary that never comes, which the
+	// maximum answers rather than a shift nobody can read.
+	pieces := Bytes(noise(22, 5000), Config{Bits: 99, Min: 64, Max: 1024, Window: 16})
+	if len(pieces) != 5 {
+		t.Fatalf("a boundary that never comes gave %d pieces, want the stream cut at the maximum", len(pieces))
+	}
+	if got := rejoin(pieces); len(got) != 5000 {
+		t.Fatal("the pieces are not the stream")
+	}
+}
