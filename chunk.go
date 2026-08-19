@@ -21,8 +21,21 @@
 // stream cut here is cut in the same places bita cuts it. They were written for
 // github.com/go-deltasync/bita and lived inside it, where nothing else could
 // reach them; this is the same code with a name, so that the next thing needing
-// content-defined chunks does not write a fourth rolling hash in this
-// organisation.
+// content-defined chunks does not write its own.
+//
+// # What is not here, and must not be
+//
+// Two other rolling sums live in this organisation, and they are not these:
+// rdiff's is librsync's and zsync2's is zsync's. All three are the same
+// Fletcher family, and none of them is the same function — the widths differ,
+// the initial state differs, the digest is packed differently, and zsync adds no
+// offset to a byte where the other two add thirty-one. On eight bytes they give
+// three different answers.
+//
+// That is not an oversight to be tidied up. Each is a constant of a wire format
+// that something else already wrote: a signature file, a .zsync header, an
+// archive. Sharing one of them would make this package's users agree with each
+// other and one of those formats unreadable.
 //
 // # Using it
 //

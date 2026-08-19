@@ -61,7 +61,26 @@ other.
 
 They were written for bita and lived inside it, where nothing else could reach
 them. This is the same code with a name, so that the next thing needing
-content-defined chunks does not write a fourth rolling hash in this organisation.
+content-defined chunks does not write its own.
+
+### What is not here, and must not be
+
+Two other rolling sums live in this organisation and are **not** these: `rdiff`'s
+is librsync's, `zsync2`'s is zsync's. All three are the same Fletcher family and
+no two are the same function — different widths, different initial state,
+differently packed digests, and zsync adds no offset to a byte where the other
+two add thirty-one. On the same eight bytes:
+
+```
+chunk.RollSum 0x011c0740
+rdiff.Rollsum 0x04d4011c
+zsync.Rsum    0x00240078
+```
+
+That is not an oversight to tidy up. Each is a constant of a wire format
+something else already wrote — a signature file, a `.zsync` header, an archive.
+Sharing one would make this package's users agree with each other and one of
+those formats unreadable.
 
 ## Configuration
 
