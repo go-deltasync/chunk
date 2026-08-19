@@ -1,0 +1,108 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  CGO_ENABLED: "0"
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - run: go vet ./...
+      - run: gofmt -l . | tee /tmp/fmt && test ! -s /tmp/fmt
+        if: matrix.os == 'ubuntu-latest'
+      - run: go test ./...
+
+  race:
+    name: race detector
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - run: go test -race ./...
+
+  coverage:
+    name: 100% coverage gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      # Every line of a chunker is on the path some stream takes, so there is no
+      # line here that a test cannot reach. The gate says so rather than trusting
+      # it.
+      - run: |
+          go test -coverprofile=cover.out ./...
+          go tool cover -func=cover.out
+          below=$(go tool cover -func=cover.out | awk '$NF != "100.0%"')
+          if [ -n "$below" ]; then
+            echo "::error::coverage below 100% on:"
+            echo "$below"
+            exit 1
+          fi
+
+  arches:
+    name: build ${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        goarch: [amd64, arm64, riscv64, loong64, ppc64le, s390x]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      # A chunk is a name for its contents, so where the cuts fall must not
+      # depend on the machine. The tests that pin that run on every architecture
+      # the fleet supports, under emulation where it is not native.
+      - run: GOARCH=${{ matrix.goarch }} go build ./...
+      - name: Install qemu-user-static
+        if: matrix.goarch != 'amd64' && matrix.goarch != 'arm64'
+        run: |
+          apt=(-y -qq -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30)
+          if timeout 240 sudo apt-get install "${apt[@]}" qemu-user-static; then
+            exit 0
+          fi
+          for attempt in 1 2; do
+            echo "::warning::the runner's package lists were not enough; refreshing them (attempt $attempt)"
+            timeout 240 sudo apt-get update "${apt[@]}" || true
+            sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock*
+            sudo dpkg --configure -a || true
+            if timeout 240 sudo apt-get install "${apt[@]}" qemu-user-static; then
+              exit 0
+            fi
+          done
+          echo "::error::qemu-user-static could not be installed"
+          exit 1
+      - name: Test
+        run: |
+          case "${{ matrix.goarch }}" in
+            amd64|arm64) go test ./... ;;
+            riscv64)  GOARCH=riscv64 go test -exec=qemu-riscv64-static ./... ;;
+            loong64)  GOARCH=loong64 go test -exec=qemu-loongarch64-static ./... ;;
+            ppc64le)  GOARCH=ppc64le go test -exec=qemu-ppc64le-static ./... ;;
+            s390x)    GOARCH=s390x   go test -exec=qemu-s390x-static ./... ;;
+          esac
