@@ -2,7 +2,6 @@
 
 [![ci](https://github.com/go-deltasync/chunk/actions/workflows/ci.yml/badge.svg)](https://github.com/go-deltasync/chunk/actions/workflows/ci.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/go-deltasync/chunk.svg)](https://pkg.go.dev/github.com/go-deltasync/chunk)
-[![Go Report Card](https://goreportcard.com/badge/github.com/go-deltasync/chunk)](https://goreportcard.com/report/github.com/go-deltasync/chunk)
 [![License: BSD-3-Clause](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
 
 Cuts a stream into pieces at boundaries the content decides. Pure Go, no
