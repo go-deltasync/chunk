@@ -24,7 +24,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
-          go-version: '1.27.1'
+          go-version: '1.27.2'
       - run: go vet ./...
       - run: gofmt -l . | tee /tmp/fmt && test ! -s /tmp/fmt
         if: matrix.os == 'ubuntu-latest'
@@ -39,7 +39,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
-          go-version: '1.27.1'
+          go-version: '1.27.2'
       - run: go test -race ./...
 
   coverage:
@@ -49,7 +49,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
-          go-version: '1.27.1'
+          go-version: '1.27.2'
       # Every line of a chunker is on the path some stream takes, so there is no
       # line here that a test cannot reach. The gate says so rather than trusting
       # it.
@@ -74,7 +74,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
-          go-version: '1.27.1'
+          go-version: '1.27.2'
       # A chunk is a name for its contents, so where the cuts fall must not
       # depend on the machine. The tests that pin that run on every architecture
       # the fleet supports, under emulation where it is not native.
